@@ -188,6 +188,35 @@ class EuRoCParser:
         self.frames = frames
 
 
+class EndoMapperParser:
+    def __init__(self, input_folder):
+        self.input_folder = input_folder
+        self.color_paths = sorted(glob.glob(f'{self.basedir}/color/*.png'))
+        self.depth_paths = sorted(
+            glob.glob(f'{self.basedir}/depth/*.exr'))
+        self.n_img = len(self.color_paths)
+        self.load_poses(os.path.join(self.basedir, 'traj.txt'))
+
+    def load_poses(self, path):
+        self.poses = []
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        frames = []
+        for i in range(self.n_img):
+            line = lines[i]
+            pose = np.array(list(map(float, line.split()))).reshape(4, 4)
+            pose = np.linalg.inv(pose)
+            self.poses.append(pose)
+            frame = {
+                "file_path": self.color_paths[i],
+                "depth_path": self.depth_paths[i],
+                "transform_matrix": pose.tolist(),
+            }
+
+            frames.append(frame)
+        self.frames = frames
+
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, args, path, config):
         self.args = args
@@ -203,6 +232,71 @@ class BaseDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         pass
 
+# from torch.utils.data import Dataset
+
+# class BaseDataset(Dataset):
+#     def __init__(self, cfg):
+#         self.cfg = cfg
+#         self.png_depth_scale = cfg['Calibration']['png_depth_scale']
+#         self.H, self.W = cfg['Calibration']['height'], cfg['Calibration']['width']
+#
+#         self.fx, self.fy = cfg['Calibration']['fx'], cfg['Calibration']['fy']
+#         self.cx, self.cy = cfg['Calibration']['cx'], cfg['Calibration']['cy']
+#         self.distortion = None
+#         self.crop_size = cfg['Calibration']['crop_edge'] if 'crop_edge' in cfg['Calibration'] else 0
+#
+#         self.total_pixels = (self.H - self.crop_size * 2) * (self.W - self.crop_size * 2)
+#
+#     def __len__(self):
+#         raise NotImplementedError()
+#
+#     def __getitem__(self, index):
+#         raise NotImplementedError()
+#
+#     def readEXR_onlydepth(self, filename):
+#         """
+#         Read depth data from EXR image file.
+#
+#         Args:
+#             filename (str): File path.
+#
+#         Returns:
+#             Y (numpy.array): Depth buffer in float32 format.
+#         """
+#         # move the import here since only CoFusion needs these package
+#         # sometimes installation of openexr is hard, you can run all other datasets
+#         # even without openexr
+#         import Imath
+#         import OpenEXR as exr
+#
+#         exrfile = exr.InputFile(filename)
+#         header = exrfile.header()
+#         dw = header['dataWindow']
+#         isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+#
+#         channelData = dict()
+#
+#         for c in header['channels']:
+#             C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
+#             C = np.fromstring(C, dtype=np.float32)
+#             C = np.reshape(C, isize)
+#
+#             channelData[c] = C
+#
+#         Y = None if 'R' not in header['channels'] else channelData['R']
+#
+#         if self.cfg['dataset'] == 'endomapper':
+#             far_ = 4.
+#             near_ = 0.01
+#             x = 1.0 - far_ / near_
+#             y = far_ / near_
+#             z = x / far_
+#             w = y / far_
+#             for i in range(dw.max.y - dw.min.y + 1):
+#                 for j in range(dw.max.x - dw.min.x + 1):
+#                     Y[i][j] = 1. / (z * (1 - Y[i][j]) + w)
+#
+#         return Y
 
 class MonocularDataset(BaseDataset):
     def __init__(self, args, path, config):
@@ -485,6 +579,108 @@ class RealsenseDataset(BaseDataset):
         return image, None, pose
 
 
+class EndomapperDataset(BaseDataset):
+    def __init__(self, args, basedir, config):
+        super(EndomapperDataset, self).__init__(args, basedir, config)
+        calibration = config["Dataset"]["Calibration"]
+
+        # Camera prameters
+        self.fx = calibration["fx"]
+        self.fx = calibration["fx"]
+        self.fy = calibration["fy"]
+        self.cx = calibration["cx"]
+        self.cy = calibration["cy"]
+        self.width = calibration["width"]
+        self.height = calibration["height"]
+        self.fovx = focal2fov(self.fx, self.width)
+        self.fovy = focal2fov(self.fy, self.height)
+        self.K = np.array(
+            [[self.fx, 0.0, self.cx], [0.0, self.fy, self.cy], [0.0, 0.0, 1.0]]
+        )
+        # distortion parameters
+        self.disorted = calibration["distorted"]
+        self.dist_coeffs = np.array(
+            [
+                calibration["k1"],
+                calibration["k2"],
+                calibration["p1"],
+                calibration["p2"],
+                calibration["k3"],
+            ]
+        )
+        self.map1x, self.map1y = cv2.initUndistortRectifyMap(
+            self.K,
+            self.dist_coeffs,
+            np.eye(3),
+            self.K,
+            (self.width, self.height),
+            cv2.CV_32FC1,
+        )
+       # depth parameters
+        # depth parameters
+        self.has_depth = True if "depth_scale" in calibration.keys() else False
+        self.depth_scale = calibration["depth_scale"] if self.has_depth else None
+
+        # Default scene scale
+        nerf_normalization_radius = 5
+        self.scene_info = {
+            "nerf_normalization": {
+                "radius": nerf_normalization_radius,
+                "translation": np.zeros(3),
+            },
+        }
+
+    def __getitem__(self, idx):
+        color_path = self.color_paths[idx]
+        pose = self.poses[idx]
+
+        image = np.array(Image.open(color_path))
+        depth = None
+        if self.disorted:
+            image = cv2.remap(image, self.map1x, self.map1y, cv2.INTER_LINEAR)
+
+        if self.has_depth:
+            depth_path = self.depth_paths[idx]
+            if '.png' in depth_path:
+                depth_data = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+            elif '.exr' in depth_path:
+                depth_data = self.readEXR_onlydepth(depth_path)
+            depth = depth_data / self.depth_scale
+
+        image = (
+            torch.from_numpy(image / 255.0)
+            .clamp(0.0, 1.0)
+            .permute(2, 0, 1)
+            .to(device=self.device, dtype=self.dtype)
+        )
+
+        pose = torch.from_numpy(pose).to(device=self.device)
+        return image, depth, pose
+
+    def load_poses(self, path):
+        self.poses = []
+        with open(path, "r") as f:
+            lines = f.readlines()
+        for i in range(len(self.img_files)):
+            line = lines[i]
+            c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
+            c2w[:3, 1] *= -1
+            c2w[:3, 2] *= -1
+            # c2w[:3, 3] *= 10
+            c2w[:3, 3] *= self.sc_factor
+            c2w = torch.from_numpy(c2w).float()
+            self.poses.append(c2w)
+
+class EndoDataset(EndomapperDataset):
+    def __init__(self, args, basedir, config):
+        super(EndomapperDataset, self).__init__(args, basedir, config)
+        dataset_path = config["Dataset"]["dataset_path"]
+        parser = EndoMapperParser(dataset_path)
+        self.num_imgs = parser.n_img
+        self.color_paths = parser.color_paths
+        self.depth_paths = parser.depth_paths
+        self.poses = parser.poses
+
 def load_dataset(args, path, config):
     if config["Dataset"]["type"] == "tum":
         return TUMDataset(args, path, config)
@@ -494,5 +690,7 @@ def load_dataset(args, path, config):
         return EurocDataset(args, path, config)
     elif config["Dataset"]["type"] == "realsense":
         return RealsenseDataset(args, path, config)
+    elif config["Dataset"]["type"] == "Endomapper":
+        return EndoDataset(args, path, config)
     else:
         raise ValueError("Unknown dataset type")
