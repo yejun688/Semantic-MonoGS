@@ -1,7 +1,7 @@
 inherit_from: "configs/mono/endomapper/base_config.yaml"
 
 Dataset:
-  dataset_path: "/home/yejun688/Downloads/sequence0/"
+  dataset_path: "/home/yejun688/Downloads/PycharmProject_04/MonoGS/datasets/Endo/sequence0"
   Calibration:
     fx: 472.64955100886374
     fy: 472.64955100886374

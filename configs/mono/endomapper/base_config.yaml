@@ -8,7 +8,7 @@ Results:
   use_wandb: False
 
 Dataset:
-  type: 'endomapper'
+  type: 'Endomapper'
   sensor_type: 'monocular'
   pcd_downsample: 64
   pcd_downsample_init: 32

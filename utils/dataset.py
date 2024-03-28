@@ -191,31 +191,75 @@ class EuRoCParser:
 class EndoMapperParser:
     def __init__(self, input_folder):
         self.input_folder = input_folder
-        self.color_paths = sorted(glob.glob(f'{self.basedir}/color/*.png'))
-        self.depth_paths = sorted(
-            glob.glob(f'{self.basedir}/depth/*.exr'))
-        self.n_img = len(self.color_paths)
-        self.load_poses(os.path.join(self.basedir, 'traj.txt'))
+        self.load_poses(self.input_folder, frame_rate=32)
 
-    def load_poses(self, path):
-        self.poses = []
-        with open(path, "r") as f:
-            lines = f.readlines()
+    def parse_list(self, filepath, skiprows=0):
+        data = np.loadtxt(filepath, delimiter=" ", dtype=np.unicode_, skiprows=skiprows)
+        return data
 
-        frames = []
-        for i in range(self.n_img):
-            line = lines[i]
-            pose = np.array(list(map(float, line.split()))).reshape(4, 4)
-            pose = np.linalg.inv(pose)
-            self.poses.append(pose)
+    def associate_frames(self, tstamp_image, tstamp_depth, tstamp_pose, max_dt=0.08):
+        associations = []
+        for i, t in enumerate(tstamp_image):
+            if tstamp_pose is None:
+                j = np.argmin(np.abs(tstamp_depth - t))
+                if np.abs(tstamp_depth[j] - t) < max_dt:
+                    associations.append((i, j))
+
+            else:
+                j = np.argmin(np.abs(tstamp_depth - t))
+                k = np.argmin(np.abs(tstamp_pose - t))
+
+                if (np.abs(tstamp_depth[j] - t) < max_dt) and (
+                        np.abs(tstamp_pose[k] - t) < max_dt
+                ):
+                    associations.append((i, j, k))
+
+        return associations
+
+    def load_poses(self, datapath, frame_rate=-1):
+        if os.path.isfile(os.path.join(datapath, "groundtruth.txt")):
+            pose_list = os.path.join(datapath, "groundtruth.txt")
+
+        image_list = os.path.join(datapath, "rgb.txt")
+        depth_list = os.path.join(datapath, "depth.txt")
+
+        image_data = self.parse_list(image_list)
+        depth_data = self.parse_list(depth_list)
+        pose_data = self.parse_list(pose_list, skiprows=1)
+        pose_vecs = pose_data[:, 0:].astype(np.float64)
+
+        tstamp_image = image_data[:, 0].astype(np.float64)
+        tstamp_depth = depth_data[:, 0].astype(np.float64)
+        tstamp_pose = pose_data[:, 0].astype(np.float64)
+        associations = self.associate_frames(tstamp_image, tstamp_depth, tstamp_pose)
+
+        indicies = [0]
+        for i in range(1, len(associations)):
+            t0 = tstamp_image[associations[indicies[-1]][0]]
+            t1 = tstamp_image[associations[i][0]]
+            if t1 - t0 > 1.0 / frame_rate:
+                indicies += [i]
+
+        self.color_paths, self.poses, self.depth_paths, self.frames = [], [], [], []
+
+        for ix in indicies:
+            (i, j, k) = associations[ix]
+            self.color_paths += [os.path.join(datapath, image_data[i, 1])]
+            self.depth_paths += [os.path.join(datapath, depth_data[j, 1])]
+
+            quat = pose_vecs[k][4:]
+            trans = pose_vecs[k][1:4]
+            T = trimesh.transformations.quaternion_matrix(np.roll(quat, 1))
+            T[:3, 3] = trans
+            self.poses += [np.linalg.inv(T)]
+
             frame = {
-                "file_path": self.color_paths[i],
-                "depth_path": self.depth_paths[i],
-                "transform_matrix": pose.tolist(),
+                "file_path": str(os.path.join(datapath, image_data[i, 1])),
+                "depth_path": str(os.path.join(datapath, depth_data[j, 1])),
+                "transform_matrix": (np.linalg.inv(T)).tolist(),
             }
 
-            frames.append(frame)
-        self.frames = frames
+            self.frames.append(frame)
 
 class BaseDataset(torch.utils.data.Dataset):
     def __init__(self, args, path, config):
@@ -656,20 +700,6 @@ class EndomapperDataset(BaseDataset):
 
         pose = torch.from_numpy(pose).to(device=self.device)
         return image, depth, pose
-
-    def load_poses(self, path):
-        self.poses = []
-        with open(path, "r") as f:
-            lines = f.readlines()
-        for i in range(len(self.img_files)):
-            line = lines[i]
-            c2w = np.array(list(map(float, line.split()))).reshape(4, 4)
-            c2w[:3, 1] *= -1
-            c2w[:3, 2] *= -1
-            # c2w[:3, 3] *= 10
-            c2w[:3, 3] *= self.sc_factor
-            c2w = torch.from_numpy(c2w).float()
-            self.poses.append(c2w)
 
 class EndoDataset(EndomapperDataset):
     def __init__(self, args, basedir, config):
