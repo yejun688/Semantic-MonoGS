@@ -1,6 +1,10 @@
 *.pyc
 .vscode
+<<<<<<< HEAD
+.idea
+=======
 .gitmodules
+>>>>>>> 7660be6fa066d0e202675d3ec350bdcc67742245
 output
 build
 diff_rasterization/diff_rast.egg-info
