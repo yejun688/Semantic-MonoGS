@@ -84,6 +84,7 @@ class TUMParser:
         depth_list = os.path.join(datapath, "depth.txt")
 
         image_data = self.parse_list(image_list)
+        print(image_data)
         depth_data = self.parse_list(depth_list)
         pose_data = self.parse_list(pose_list, skiprows=1)
         pose_vecs = pose_data[:, 0:].astype(np.float64)
@@ -192,6 +193,7 @@ class EndoMapperParser:
     def __init__(self, input_folder):
         self.input_folder = input_folder
         self.load_poses(self.input_folder, frame_rate=32)
+        self.n_img = len(self.color_paths)
 
     def parse_list(self, filepath, skiprows=0):
         data = np.loadtxt(filepath, delimiter=" ", dtype=np.unicode_, skiprows=skiprows)
@@ -624,12 +626,11 @@ class RealsenseDataset(BaseDataset):
 
 
 class EndomapperDataset(BaseDataset):
-    def __init__(self, args, basedir, config):
-        super(EndomapperDataset, self).__init__(args, basedir, config)
+    def __init__(self, args, path, config):
+        super().__init__(args, path, config)
         calibration = config["Dataset"]["Calibration"]
-
         # Camera prameters
-        self.fx = calibration["fx"]
+        self.config = config
         self.fx = calibration["fx"]
         self.fy = calibration["fy"]
         self.cx = calibration["cx"]
@@ -674,6 +675,51 @@ class EndomapperDataset(BaseDataset):
             },
         }
 
+    def readEXR_onlydepth(self, filename):
+        """
+        Read depth data from EXR image file.
+
+        Args:
+            filename (str): File path.
+
+        Returns:
+            Y (numpy.array): Depth buffer in float32 format.
+        """
+        # move the import here since only CoFusion needs these package
+        # sometimes installation of openexr is hard, you can run all other datasets
+        # even without openexr
+        import Imath
+        import OpenEXR as exr
+
+        exrfile = exr.InputFile(filename)
+        header = exrfile.header()
+        dw = header['dataWindow']
+        isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+
+        channelData = dict()
+
+        for c in header['channels']:
+            C = exrfile.channel(c, Imath.PixelType(Imath.PixelType.FLOAT))
+            C = np.fromstring(C, dtype=np.float32)
+            C = np.reshape(C, isize)
+
+            channelData[c] = C
+
+        Y = None if 'R' not in header['channels'] else channelData['R']
+        if self.config["Dataset"]["type"] == 'Endomapper':
+            far_ = 4.
+            near_ = 0.01
+            x = 1.0 - far_ / near_
+            y = far_ / near_
+            z = x / far_
+            w = y / far_
+            for i in range(dw.max.y - dw.min.y + 1):
+                for j in range(dw.max.x - dw.min.x + 1):
+                    Y[i][j] = 1. / (z * (1 - Y[i][j]) + w)
+
+        return Y
+
+
     def __getitem__(self, idx):
         color_path = self.color_paths[idx]
         pose = self.poses[idx]
@@ -703,7 +749,7 @@ class EndomapperDataset(BaseDataset):
 
 class EndoDataset(EndomapperDataset):
     def __init__(self, args, basedir, config):
-        super(EndomapperDataset, self).__init__(args, basedir, config)
+        super().__init__(args, basedir, config)
         dataset_path = config["Dataset"]["dataset_path"]
         parser = EndoMapperParser(dataset_path)
         self.num_imgs = parser.n_img

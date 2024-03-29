@@ -56,7 +56,8 @@ class SLAM:
         self.dataset = load_dataset(
             model_params, model_params.source_path, config=config
         )
-
+        print(self.dataset.fx)
+        print(self.dataset.fy)
         self.gaussians.training_setup(opt_params)
         bg_color = [0, 0, 0]
         self.background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
