@@ -24,6 +24,12 @@ from utils.logging_utils import Log
 
 def evaluate_evo(poses_gt, poses_est, plot_dir, label, monocular=False):
     ## Plot
+    # print(poses_est)
+    # print("---------------------")
+    # print(poses_gt)
+    # print(len(poses_gt))
+    # print(len(poses_est))
+    # exit()
     traj_ref = PosePath3D(poses_se3=poses_gt)
     traj_est = PosePath3D(poses_se3=poses_est)
     traj_est_aligned = trajectory.align_trajectory(

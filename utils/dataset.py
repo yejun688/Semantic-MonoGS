@@ -84,7 +84,6 @@ class TUMParser:
         depth_list = os.path.join(datapath, "depth.txt")
 
         image_data = self.parse_list(image_list)
-        print(image_data)
         depth_data = self.parse_list(depth_list)
         pose_data = self.parse_list(pose_list, skiprows=1)
         pose_vecs = pose_data[:, 0:].astype(np.float64)
@@ -413,7 +412,7 @@ class MonocularDataset(BaseDataset):
             .to(device=self.device, dtype=self.dtype)
         )
         pose = torch.from_numpy(pose).to(device=self.device)
-        return image, depth, pose
+        return image[:3], depth, pose
 
 
 class StereoDataset(BaseDataset):

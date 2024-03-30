@@ -1,18 +1,14 @@
-[comment]: <> (# Gaussian Splatting SLAM)
+[comment]: <> (# Gaussian Splatting SLAM for Endo Surgical Scene)
 
 <!-- PROJECT LOGO -->
 
 <p align="center">
 
-  <h1 align="center"> Gaussian Splatting SLAM
+  <h1 align="center"> Gaussian Splatting SLAM for Endo Surgical Scene
   </h1>
   <p align="center">
-    <a href="https://muskie82.github.io/"><strong>*Hidenobu Matsuki</strong></a>
-    ·
-    <a href="https://rmurai.co.uk/"><strong>*Riku Murai</strong></a>
-    ·
-    <a href="https://www.imperial.ac.uk/people/p.kelly/"><strong>Paul H.J. Kelly</strong></a>
-    ·
+    <a href="https://yejun688.github.io/"><strong>*Rekkles Ye</strong></a>
+·
     <a href="https://www.doc.ic.ac.uk/~ajd/"><strong>Andrew J. Davison</strong></a>
   </p>
   <p align="center">(* Equal Contribution)</p>
@@ -111,6 +107,15 @@ python slam.py --config configs/rgbd/replica/office0_sp.yaml
 ```bash
 python slam.py --config configs/stereo/euroc/mh02.yaml
 ```
+## Endo Scene SLAM
+<p align="center">
+  <a href="">
+    <img src="./asset/evo_2dplot_0067.png" alt="teaser" width="50%">
+    <img src="./asset/evo_2dplot_final.png" alt="teaser" width="50%">
+  </a>
+</p>
+
+
 
 ## Live demo with Realsense
 First, you'll need to install `pyrealsense2`.

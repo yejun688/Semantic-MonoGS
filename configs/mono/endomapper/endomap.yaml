@@ -1,4 +1,4 @@
-inherit_from: "configs/mono/endomapper/base_config.yaml"
+inherit_from: "/home/yejun688/Downloads/PycharmProject_04/MonoGS/configs/mono/endomapper/base_config.yaml"
 
 Dataset:
   dataset_path: "/home/yejun688/Downloads/PycharmProject_04/MonoGS/datasets/Endo/sequence0"
@@ -12,9 +12,9 @@ Dataset:
     p1: 0
     p2: 0
     k3: 0
-    width: 720
-    height: 960
-    depth_scale: 5000.0
+    width: 960
+    height: 720
+    depth_scale: 1
     png_depth_scale: 0.1   # for depth image in png format        #exr文件是dm单位的 需要转换为cm单位
     crop_edge: 0
     distorted: False

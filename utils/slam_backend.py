@@ -405,6 +405,7 @@ class BackEnd(mp.Process):
                 elif data[0] == "init":
                     cur_frame_idx = data[1]
                     viewpoint = data[2]
+                    # print((viewpoint.original_image).shape)   # [4,H,W]
                     depth_map = data[3]
                     Log("Resetting the system")
                     self.reset()

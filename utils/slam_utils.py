@@ -67,7 +67,7 @@ def get_loss_tracking_rgb(config, image, depth, opacity, viewpoint):
     rgb_boundary_threshold = config["Training"]["rgb_boundary_threshold"]
     rgb_pixel_mask = (gt_image.sum(dim=0) > rgb_boundary_threshold).view(*mask_shape)
     rgb_pixel_mask = rgb_pixel_mask * viewpoint.grad_mask
-    l1 = opacity * torch.abs(image * rgb_pixel_mask - gt_image * rgb_pixel_mask)
+    l1 = opacity * torch.abs(image * rgb_pixel_mask - gt_image[:3] * rgb_pixel_mask)
     return l1.mean()
 
 
@@ -94,7 +94,7 @@ def get_loss_mapping(config, image, depth, viewpoint, opacity, initialization=Fa
     else:
         image_ab = (torch.exp(viewpoint.exposure_a)) * image + viewpoint.exposure_b
     if config["Training"]["monocular"]:
-        return ` get_loss_mapping_rgb(config, image_ab, depth, viewpoint)
+        return get_loss_mapping_rgb(config, image_ab, depth, viewpoint)
     return get_loss_mapping_rgbd(config, image_ab, depth, viewpoint)
 
 
@@ -105,7 +105,7 @@ def get_loss_mapping_rgb(config, image, depth, viewpoint):
     rgb_boundary_threshold = config["Training"]["rgb_boundary_threshold"]
 
     rgb_pixel_mask = (gt_image.sum(dim=0) > rgb_boundary_threshold).view(*mask_shape)
-    l1_rgb = torch.abs(image * rgb_pixel_mask - gt_image * rgb_pixel_mask)
+    l1_rgb = torch.abs(image * rgb_pixel_mask - gt_image[:3] * rgb_pixel_mask)
 
     return l1_rgb.mean()
 
