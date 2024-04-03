@@ -115,7 +115,12 @@ python slam.py --config configs/stereo/euroc/mh02.yaml
   </a>
 </p>
 
-
+## Endo Scene SLAM rendering metric
+<p align="center">
+  <a href="">
+    <img src="./asset/evo_2dplot_0067.png" alt="teaser" width="50%">
+  </a>
+</p>
 
 ## Live demo with Realsense
 First, you'll need to install `pyrealsense2`.

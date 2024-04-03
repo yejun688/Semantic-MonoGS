@@ -347,10 +347,10 @@ class BackEnd(mp.Process):
             )
 
             gt_image = viewpoint_cam.original_image.cuda()
-            Ll1 = l1_loss(image, gt_image)
+            Ll1 = l1_loss(image, gt_image[:3])
             loss = (1.0 - self.opt_params.lambda_dssim) * (
                 Ll1
-            ) + self.opt_params.lambda_dssim * (1.0 - ssim(image, gt_image))
+            ) + self.opt_params.lambda_dssim * (1.0 - ssim(image, gt_image[:3]))
             loss.backward()
             with torch.no_grad():
                 self.gaussians.max_radii2D[visibility_filter] = torch.max(

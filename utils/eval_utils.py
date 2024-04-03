@@ -141,12 +141,13 @@ def eval_rendering(
             continue
         saved_frame_idx.append(idx)
         frame = frames[idx]
-        gt_image, _, _ = dataset[idx]
+        gt_image1, _, _ = dataset[idx]
+        gt_image = gt_image1[:3]
 
         rendering = render(frame, gaussians, pipe, background)["render"]
-        image = torch.clamp(rendering, 0.0, 1.0)
+        image = torch.clamp(rendering, 0.0, 1.0)[:3]
 
-        gt = (gt_image.cpu().numpy().transpose((1, 2, 0)) * 255).astype(np.uint8)
+        gt = (gt_image[:3].cpu().numpy().transpose((1, 2, 0)) * 255).astype(np.uint8)
         pred = (image.detach().cpu().numpy().transpose((1, 2, 0)) * 255).astype(
             np.uint8
         )
@@ -155,7 +156,19 @@ def eval_rendering(
         img_pred.append(pred)
         img_gt.append(gt)
 
-        mask = gt_image > 0
+        mask1 = gt_image > 0
+        mask = mask1[:3]
+        print(image.shape)
+        print(mask.shape)
+        print(gt_image.shape)
+
+        # Check the batch size of image and gt_image
+        if image.shape[0] != mask.shape[0] or gt_image.shape[0] != mask.shape[0]:
+            raise ValueError("Batch size of image, gt_image and mask must be the same.")
+
+        # Apply the mask to the images
+        image_masked = image[mask]
+        gt_image_masked = gt_image[mask]
 
         psnr_score = psnr((image[mask]).unsqueeze(0), (gt_image[mask]).unsqueeze(0))
         ssim_score = ssim((image).unsqueeze(0), (gt_image).unsqueeze(0))
