@@ -118,7 +118,7 @@ python slam.py --config configs/stereo/euroc/mh02.yaml
 ## Endo Scene SLAM rendering metric
 <p align="center">
   <a href="">
-    <img src="./asset/evo_2dplot_0067.png" alt="teaser" width="50%">
+    <img src="./asset/PSNR.png" alt="teaser" width="50%">
   </a>
 </p>
 
