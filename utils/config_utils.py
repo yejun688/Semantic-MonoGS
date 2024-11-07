@@ -1,6 +1,7 @@
 import yaml
 
 
+
 def load_config(path, default_path=None):
     """
     Loads config file.
