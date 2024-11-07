@@ -7,9 +7,8 @@
   <h1 align="center"> Gaussian Splatting SLAM for Endo Surgical Scene
   </h1>
   <p align="center">
-    <a href="https://yejun688.github.io/"><strong>*Rekkles Ye</strong></a>
+    <a href="https://yejun688.github.io/"><strong>*Rekkles</strong></a>
 ·
-    <a href="https://www.doc.ic.ac.uk/~ajd/"><strong>Andrew J. Davison</strong></a>
   </p>
   <p align="center">(* Equal Contribution)</p>
 
